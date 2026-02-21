@@ -65,6 +65,7 @@ export function generateMockIssues(count: number, userId?: string): Issue[] {
       description: descriptions[Math.floor(Math.random() * descriptions.length)],
       latitude: loc.lat + (Math.random() - 0.5) * 0.01,
       longitude: loc.lng + (Math.random() - 0.5) * 0.01,
+      address: loc.name,
       status,
       priority,
       ai_confidence: Math.floor(Math.random() * 15) + 85,

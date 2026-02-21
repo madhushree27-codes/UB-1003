@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
-  FileText, Plus, Star, Clock, CheckCircle, AlertTriangle, Upload, MapPin, Send, ChevronDown, Eye
+  FileText, Plus, Star, Clock, CheckCircle, AlertTriangle, Upload, MapPin, Send, ChevronDown, Eye, Camera, LocateFixed
 } from "lucide-react";
 import StatsCard from "@/components/StatsCard";
 import { analyzeIssue } from "@/lib/aiEngine";
@@ -31,6 +31,14 @@ export default function CitizenPortal() {
   const [submitted, setSubmitted] = useState(false);
   const [ratingIssueId, setRatingIssueId] = useState<string | null>(null);
 
+  // Location state
+  const [gpsLat, setGpsLat] = useState<number | null>(null);
+  const [gpsLng, setGpsLng] = useState<number | null>(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [address, setAddress] = useState("");
+  const [useManualAddress, setUseManualAddress] = useState(false);
+
   const userIssues = useMemo(() => issues.filter(i => i.user_id === CURRENT_USER), [issues]);
 
   const myResolved = userIssues.filter(i => i.status === "Resolved").length;
@@ -41,14 +49,36 @@ export default function CitizenPortal() {
     return rated.length ? (rated.reduce((s, i) => s + (i.satisfaction_score || 0), 0) / rated.length).toFixed(1) : "N/A";
   }, [userIssues]);
 
+  const fetchGPS = () => {
+    if (!navigator.geolocation) {
+      setGpsError("Geolocation not supported by your browser");
+      return;
+    }
+    setGpsLoading(true);
+    setGpsError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGpsLat(pos.coords.latitude);
+        setGpsLng(pos.coords.longitude);
+        setAddress(`Lat: ${pos.coords.latitude.toFixed(4)}, Lng: ${pos.coords.longitude.toFixed(4)}`);
+        setGpsLoading(false);
+        setUseManualAddress(false);
+      },
+      (err) => {
+        setGpsError("Could not get location. You can enter address manually.");
+        setGpsLoading(false);
+        setUseManualAddress(true);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   const handleSubmit = () => {
     const result = analyzeIssue(category, description);
     setAiResult(result);
 
-    const loc = {
-      lat: 28.5 + Math.random() * 0.3,
-      lng: 77.0 + Math.random() * 0.5,
-    };
+    const lat = gpsLat ?? 28.5 + Math.random() * 0.3;
+    const lng = gpsLng ?? 77.0 + Math.random() * 0.5;
 
     const newIssue: Issue = {
       issue_id: `ISS-${2000 + issues.length}`,
@@ -56,8 +86,9 @@ export default function CitizenPortal() {
       image_url: imageFile ? URL.createObjectURL(imageFile) : "",
       category,
       description,
-      latitude: loc.lat,
-      longitude: loc.lng,
+      latitude: lat,
+      longitude: lng,
+      address: address.trim() || `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`,
       status: "Submitted",
       priority: result.priority_score,
       ai_confidence: result.confidence,
@@ -83,6 +114,11 @@ export default function CitizenPortal() {
     setImageFile(null);
     setAiResult(null);
     setSubmitted(false);
+    setGpsLat(null);
+    setGpsLng(null);
+    setGpsError(null);
+    setAddress("");
+    setUseManualAddress(false);
   };
 
   return (
@@ -162,16 +198,34 @@ export default function CitizenPortal() {
               <div className="space-y-5">
                 <h3 className="font-display text-xl font-semibold text-foreground">Report an Issue</h3>
 
-                {/* Image Upload */}
+                {/* Image Upload – Camera + File */}
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-foreground">Upload Image</label>
-                  <label className="flex cursor-pointer flex-col items-center gap-3 rounded-lg border-2 border-dashed border-border p-8 transition-colors hover:border-accent hover:bg-accent/5">
-                    <Upload className="h-8 w-8 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">
-                      {imageFile ? imageFile.name : "Click to upload from desktop"}
-                    </span>
-                    <input type="file" accept="image/*" className="hidden" onChange={e => setImageFile(e.target.files?.[0] || null)} />
-                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Camera capture */}
+                    <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border p-6 transition-colors hover:border-accent hover:bg-accent/5">
+                      <Camera className="h-7 w-7 text-muted-foreground" />
+                      <span className="text-xs text-center text-muted-foreground">Take Photo</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={e => setImageFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                    {/* File upload */}
+                    <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border p-6 transition-colors hover:border-accent hover:bg-accent/5">
+                      <Upload className="h-7 w-7 text-muted-foreground" />
+                      <span className="text-xs text-center text-muted-foreground">From Gallery</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => setImageFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                  </div>
                   {imageFile && (
                     <img src={URL.createObjectURL(imageFile)} alt="Preview" className="mt-3 h-40 w-full rounded-lg object-cover" />
                   )}
@@ -192,11 +246,39 @@ export default function CitizenPortal() {
                   </div>
                 </div>
 
-                {/* Location */}
+                {/* Location – GPS + Manual */}
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-foreground">Location</label>
-                  <div className="flex items-center gap-2 rounded-lg border border-input bg-muted/50 px-4 py-2.5 text-sm text-muted-foreground">
-                    <MapPin className="h-4 w-4" /> GPS auto-captured (random unique location)
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={fetchGPS}
+                      disabled={gpsLoading}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-input bg-muted/50 px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                    >
+                      <LocateFixed className={`h-4 w-4 ${gpsLoading ? "animate-spin" : ""}`} />
+                      {gpsLoading ? "Detecting location..." : gpsLat ? "📍 Location captured" : "Use My Live Location"}
+                    </button>
+                    {gpsLat && !useManualAddress && (
+                      <div className="flex items-center gap-2 rounded-lg bg-success/5 border border-success/20 px-3 py-2 text-xs text-success">
+                        <MapPin className="h-3 w-3" /> {gpsLat.toFixed(4)}, {gpsLng?.toFixed(4)}
+                      </div>
+                    )}
+                    {gpsError && (
+                      <p className="text-xs text-destructive">{gpsError}</p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-xs text-muted-foreground">or enter manually</span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={e => { setAddress(e.target.value); setUseManualAddress(true); }}
+                      placeholder="e.g. Near Connaught Place, New Delhi"
+                      className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
                   </div>
                 </div>
 
@@ -295,6 +377,9 @@ export default function CitizenPortal() {
                     </div>
                     <p className="font-medium text-foreground">{issue.category}</p>
                     <p className="text-sm text-muted-foreground line-clamp-1">{issue.description}</p>
+                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <MapPin className="h-3 w-3" /> {issue.address}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(issue.created_at).toLocaleDateString()} · {issue.assigned_department} · Confidence: {issue.ai_confidence}%
                     </p>

@@ -33,6 +33,7 @@ export interface Issue {
   description: string;
   latitude: number;
   longitude: number;
+  address: string;
   status: IssueStatus;
   priority: number;
   ai_confidence: number;
