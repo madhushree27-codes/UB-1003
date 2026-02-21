@@ -151,26 +151,16 @@ export default function AdminDashboard() {
                 <td className="p-3 text-muted-foreground">{issue.assigned_department}</td>
                 <td className="p-3 text-xs text-muted-foreground">{issue.latitude.toFixed(4)}, {issue.longitude.toFixed(4)}</td>
                 <td className="p-3 text-xs text-muted-foreground">{new Date(issue.created_at).toLocaleDateString()}</td>
-                <td className="p-3 flex items-center gap-1.5">
-                  {issue.status !== "In Progress" && (
-                    <button
-                      onClick={() => updateIssueStatus(issue.issue_id, "In Progress")}
-                      className="rounded-md bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning hover:bg-warning/20 transition-colors"
-                    >
-                      In Progress
-                    </button>
-                  )}
-                  {issue.status !== "Resolved" && (
-                    <button
-                      onClick={() => updateIssueStatus(issue.issue_id, "Resolved")}
-                      className="rounded-md bg-success/10 px-2.5 py-1 text-xs font-medium text-success hover:bg-success/20 transition-colors"
-                    >
-                      Resolved
-                    </button>
-                  )}
-                  {issue.status === "Resolved" && (
-                    <span className="text-xs text-success font-medium">✓ Done</span>
-                  )}
+                <td className="p-3">
+                  <select
+                    value={issue.status}
+                    onChange={e => updateIssueStatus(issue.issue_id, e.target.value as IssueStatus)}
+                    className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="Submitted">Submitted</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                  </select>
                 </td>
               </tr>
             ))}
